@@ -150,12 +150,7 @@ def _random_password(length=DEFAULT_LENGTH, chars=C.DEFAULT_PASSWORD_CHARS):
 
     random_generator = random.SystemRandom()
 
-    password = []
-    while len(password) < length:
-        new_char = random_generator.choice(chars)
-        password.append(new_char)
-
-    return u''.join(password)
+    return u''.join(random_generator.choice(chars) for i in range(length))
 
 
 def _random_salt():
