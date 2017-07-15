@@ -107,6 +107,8 @@ class PullCLI(CLI):
                                help='modified files in the working repository will be discarded')
         self.parser.add_option('--track-subs', dest='tracksubs', default=False, action='store_true',
                                help='submodules will track the latest changes. This is equivalent to specifying the --remote flag to git submodule update')
+        self.parser.add_option('--ssh_opts', dest='ssh_opts', 
+                               help='Additional SSH options used to checkout the repository.')
 
         # for pull we don't want a default
         self.parser.set_defaults(inventory=None)
@@ -186,6 +188,9 @@ class PullCLI(CLI):
 
             if self.options.tracksubs:
                 repo_opts += ' track_submodules=yes'
+
+            if self.options.ssh_opts:
+                repo_opts += ' ssh_opts=%s' % self.options.ssh_opts
 
             if not self.options.fullclone:
                 repo_opts += ' depth=1'
