@@ -260,13 +260,12 @@ import filecmp
 import os
 import re
 import shlex
-import stat
 import sys
 import shutil
 import tempfile
 from distutils.version import LooseVersion
 
-from ansible.module_utils.basic import AnsibleModule, get_module_path
+from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.six import b, string_types
 from ansible.module_utils._text import to_native
 
@@ -334,47 +333,23 @@ def get_submodule_update_params(module, git_path, cwd):
     return params
 
 
-def write_ssh_wrapper():
-    module_dir = get_module_path()
-    try:
-        # make sure we have full permission to the module_dir, which
-        # may not be the case if we're sudo'ing to a non-root user
-        if os.access(module_dir, os.W_OK | os.R_OK | os.X_OK):
-            fd, wrapper_path = tempfile.mkstemp(prefix=module_dir + '/')
-        else:
-            raise OSError
-    except (IOError, OSError):
-        fd, wrapper_path = tempfile.mkstemp()
-    fh = os.fdopen(fd, 'w+b')
-    template = b("""#!/bin/sh
-if [ -z "$GIT_SSH_OPTS" ]; then
-    BASEOPTS=""
-else
-    BASEOPTS=$GIT_SSH_OPTS
-fi
+def build_ssh_command():
 
-# Let ssh fail rather than prompt
-BASEOPTS="$BASEOPTS -o BatchMode=yes"
+    key = os.environ.get('GIT_KEY')
+    if key is not None:
+        opts = "-i '%s' -o IdentitiesOnly=yes " % key
+    else:
+        opts = ' '
 
-if [ -z "$GIT_KEY" ]; then
-    ssh $BASEOPTS "$@"
-else
-    ssh -i "$GIT_KEY" -o IdentitiesOnly=yes $BASEOPTS "$@"
-fi
-""")
-    fh.write(template)
-    fh.close()
-    st = os.stat(wrapper_path)
-    os.chmod(wrapper_path, st.st_mode | stat.S_IEXEC)
-    return wrapper_path
+    # append option to let ssh fail rather than prompt
+    return 'ssh ' + opts + os.environ.get('GIT_SSH_OPTS', '') + ' -o BatchMode=yes'
 
 
-def set_git_ssh(ssh_wrapper, key_file, ssh_opts):
+def set_git_ssh(ssh_command, key_file, ssh_opts):
 
-    # git_ssh_command will override git_ssh, so only older git needs it
-    os.environ["GIT_SSH"] = ssh_wrapper
-    # using shell to avoid 'noexec' issues if module temp dir is located in such a mount
-    os.environ["GIT_SSH_COMMAND"] = '%s %s' % (os.environ.get('SHELL', '/bin/sh'), ssh_wrapper)
+    # git_ssh_command will override git_ssh, here for older git
+    os.environ["GIT_SSH"] = ssh_command
+    os.environ["GIT_SSH_COMMAND"] = ssh_command
 
     if os.environ.get("GIT_KEY"):
         del os.environ["GIT_KEY"]
@@ -1049,12 +1024,9 @@ def main():
         else:
             gitconfig = os.path.join(dest, '.git', 'config')
 
-    # create a wrapper script and export
-    # GIT_SSH=<path> as an environment variable
-    # for git to use the wrapper script
-    ssh_wrapper = write_ssh_wrapper()
-    set_git_ssh(ssh_wrapper, key_file, ssh_opts)
-    module.add_cleanup_file(path=ssh_wrapper)
+    # build ssh command for git to use, make sure it is not interactive (dont get stuck on prompts)
+    ssh_command = build_ssh_command()
+    set_git_ssh(ssh_command, key_file, ssh_opts)
 
     git_version_used = git_version(git_path, module)
 
@@ -1162,14 +1134,6 @@ def main():
             module.exit_json(**result)
 
         create_archive(git_path, module, dest, archive, version, repo, result)
-
-    # cleanup the wrapper script
-    if ssh_wrapper:
-        try:
-            os.remove(ssh_wrapper)
-        except OSError:
-            # No need to fail if the file already doesn't exist
-            pass
 
     module.exit_json(**result)
 
