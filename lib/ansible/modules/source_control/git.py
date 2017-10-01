@@ -333,35 +333,22 @@ def get_submodule_update_params(module, git_path, cwd):
     return params
 
 
-def build_ssh_command():
-
-    key = os.environ.get('GIT_KEY')
-    if key is not None:
-        opts = "-i '%s' -o IdentitiesOnly=yes " % key
+def build_ssh_command(key_file, ssh_opts):
+    if key_file is not None:
+        opts = "-i '%s' -o IdentitiesOnly=yes " % key_file
     else:
         opts = ' '
 
-    # append option to let ssh fail rather than prompt
-    return 'ssh ' + opts + os.environ.get('GIT_SSH_OPTS', '') + ' -o BatchMode=yes'
-
-
-def set_git_ssh(ssh_command, key_file, ssh_opts):
-
-    # git_ssh_command will override git_ssh, here for older git
-    os.environ["GIT_SSH"] = ssh_command
-    os.environ["GIT_SSH_COMMAND"] = ssh_command
-
-    if os.environ.get("GIT_KEY"):
-        del os.environ["GIT_KEY"]
-
-    if key_file:
-        os.environ["GIT_KEY"] = key_file
-
-    if os.environ.get("GIT_SSH_OPTS"):
-        del os.environ["GIT_SSH_OPTS"]
-
     if ssh_opts:
-        os.environ["GIT_SSH_OPTS"] = ssh_opts
+        opts += ssh_opts
+
+    # append BatchMode option to let ssh fail rather than prompt
+    return 'ssh ' + opts + ' -o BatchMode=yes'
+
+
+def set_git_ssh(ssh_command):
+    # git_ssh_command will override git_ssh, here for older git
+    os.environ["GIT_SSH_COMMAND"] = ssh_command
 
 
 def get_version(module, git_path, dest, ref="HEAD"):
@@ -1025,8 +1012,8 @@ def main():
             gitconfig = os.path.join(dest, '.git', 'config')
 
     # build ssh command for git to use, make sure it is not interactive (dont get stuck on prompts)
-    ssh_command = build_ssh_command()
-    set_git_ssh(ssh_command, key_file, ssh_opts)
+    ssh_command = build_ssh_command(key_file, ssh_opts)
+    set_git_ssh(ssh_command)
 
     git_version_used = git_version(git_path, module)
 
