@@ -49,21 +49,22 @@ options:
         version_added: "1.5"
         description:
             - if C(yes), ensure that "-o StrictHostKeyChecking=no" is
-              present as an ssh options.
+              present in the ssh options, requires at least git 2.3.
+              See C(ssh_opts) for more general options.
     ssh_opts:
         required: false
         default: None
         version_added: "1.5"
         description:
-            - Creates a wrapper script and exports the path as GIT_SSH
-              which git then automatically uses to override ssh arguments.
-              An example value could be "-o StrictHostKeyChecking=no"
+            - Pass SSH arguments via GIT_SSH_COMMAND, requires at least git 2.3.
+              An example value could be C("-o StrictHostKeyChecking=no").
     key_file:
         required: false
         default: None
         version_added: "1.5"
         description:
-            - Specify an optional private key file to use for the checkout.
+            - Specify an optional private key file to use for the checkout, required at
+            least git 2.3.
     reference:
         required: false
         default: null
